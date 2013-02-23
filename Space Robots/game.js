@@ -1,3 +1,4 @@
+		var ip="188.116.4.138";
 		//Utils
 			/*function degToRad(angle) {
 				return ((angle*Math.PI) / 180);
@@ -36,7 +37,7 @@
         me: 'imgs/me.png',
         ship: 'imgs/enemy.png',
         meteor: 'imgs/asteroid.png',
-        bg: 'imgs/bg.jpg',
+        bg: 'imgs/bg.png',
         projectile: 'imgs/lazor.png'
       };
 
@@ -56,7 +57,7 @@
 			        	screen("Connecting... (Loaded)");
 			        }
 			      });
-				socket = new WebSocket("ws://localhost:9999/");
+				socket = new WebSocket("ws://"+ip+":9999/");
 				socket.onopen = function (evt){
 					load++;
 			        if(load>=2){
@@ -76,7 +77,82 @@
 				  screen("Connection closed! Please refresh, sorry");
 				};
 				socket.onmessage = function(evt) {
-				document.getElementById("main").innerHTML += "Msg: "+evt.data+"<br>";
+					var msg = JSON.parse(evt.data);
+					//console.log(msg);
+					switch(msg.type){
+						case 'm':
+							var id=msg.pid;
+							players[id] = {
+								x: msg.x,
+								y: msg.y,
+								velocity: msg.v,
+								direction: msg.d,
+								resId: 1
+							};
+							velocity(players[id],lastUpdate.getTime()-msg.time);
+							//console.log(Object.keys(players).length)
+							players[id].life=4*60*1000;
+						break;
+						case 'd':
+							var id=msg.pid;
+							var dt=lastUpdate-msg.time;
+							if(players[id]!=undefined){
+								velocity(players[id],-dt);
+								players[id].direction=msg.d;
+								velocity(players[id],dt);
+								players[id].life=4*60*1000;
+							}
+						break;
+						case 's':
+							entities[msg.eid] = {
+								resId: 3,
+								x: msg.x,
+								y: msg.y,
+								velocity: msg.v,
+								direction: msg.d,
+								life: 1000*2.5,
+							};
+							//console.log(entities[msg.eid]);
+							entities[msg.eid].life-=(lastUpdate.getTime()-msg.time);
+							velocity(entities[msg.eid],lastUpdate.getTime()-msg.time);
+						break;
+						case 'a':
+							entities[msg.eid] = {
+								resId: 2,
+								x: msg.x,
+								y: msg.y,
+								velocity: msg.v,
+								direction: msg.d,
+								life: 1000*60,
+							};
+							//console.log(entities[msg.eid]);
+							entities[msg.eid].life-=(lastUpdate.getTime()-msg.time);
+							velocity(entities[msg.eid],lastUpdate.getTime()-msg.time);
+						break;
+						case 'r':
+							//players.remove(msg.pid);
+							delete players[msg.pid];
+						break;
+						case 'b':
+							//entities[msg.eid].resId=2;
+							//entities[msg.eid].velocity=0;
+							delete entities[msg.eid]
+						break
+						case 'f':
+							player.x=msg.x;
+							player.y=msg.y;
+							player.velocity=0;
+						break
+						case 't':
+							dead=true;
+							screen(msg.txt+"    Press Z to continue");
+						break
+						case 'c':
+							{
+								document.getElementById("score").innerHTML = "Score: "+msg.score+" destroyed robots";
+							}
+						break
+					}
 				};
 				lastUpdate=new Date();
 			}
@@ -98,26 +174,12 @@
 					right=true;
 				break;
 				case 90:
+					if (dead){
+						dead=false;
+						return;
+					}
 					if(cooldown<=0){
-						var bullet = {
-							direction: 0,
-							velocity: 0,
-							id: -1,
-							x: 0,
-							y: 0,
-							resId: 3,
-							life: 1000*4
-						};
-						bullet.direction = player.direction;
-						bullet.x=player.x+resources.me.width/2;
-						bullet.y=player.y+resources.me.height/2;
-						bullet.velocity=player.velocity+100;
-						bullet.resId=3;
-						bullet.life=1000*2.5;//~3.3secs lifetime?
-						entities.push(bullet);
-						cooldown=320;
-						//console.log(entities);
-						//TODO net
+						shoot()
 					}
 				break;
 			}
@@ -138,36 +200,59 @@
 				break;
 			}
 		};
+		window.addEventListener('keydown',window.onKeyDown,true);
+		window.addEventListener('keyup',window.onKeyUp,true);
+		document.addEventListener('keydown',window.onKeyDown,true);
+		document.addEventListener('keyup',window.onKeyUp,true);
 		//Game	
+		var lastV=0,lastD=0, hyperDriveUpdate=0;
 		var load=0;
+		var dead=false;
 			var player = {
 				direction: 0,
 				velocity: 0,
-				id: 0,
 				x: 0,
 				y: 0,
 				resId: 0
 			};
-			var entities=new Array(), players=new Array();
+			var entities={}, players={};
 			
 			var lastUpdate;
 			
+			function shoot(){
+				if(cooldown<=0){
+						var msg = {
+							type: "s",
+							x: player.x+Math.cos(player.direction)*28,
+							y: player.y+Math.sin(player.direction)*28,
+							v: player.velocity+100,
+							d: player.direction,
+							time: lastUpdate.getTime()
+						};
+						socket.send(JSON.stringify(msg));
+						cooldown=320;
+					}
+			}
+			
 			function update(){
+				if(dead){
+					return;
+				}
 				var now = new Date()
 				var dt = now.getTime()-lastUpdate.getTime();//delta time
 				lastUpdate=now;
 				//update events
 				if(up){
-					player.velocity+=dt/10;//TODO net
+					player.velocity+=dt/10;
 				}
 				if(down){
-					player.velocity-=dt/10;//TODO net
+					player.velocity-=dt/10;
 				}
 				if(right){
-					player.direction+=dt/300;//TODO net
+					player.direction+=dt/360;
 				}
 				if(left){
-					player.direction-=dt/300;//TODO net
+					player.direction-=dt/360;
 				}
 				//endof events
 				if(document.getElementById("doUpdate").checked){
@@ -176,28 +261,90 @@
 				if(player.velocity>200){
 					player.velocity=200;
 				}
-				player.velocity-=dt/100;//friction
 				if(player.velocity<0){
 					player.velocity=0;
 				}
+				//network
+				if(player.velocity!=lastV){
+					var msg = {
+						type: "m",
+						x: player.x,
+						y: player.y,
+						v: player.velocity,
+						d: player.direction,
+						time: lastUpdate.getTime()
+					};
+					socket.send(JSON.stringify(msg));
+					lastV=player.velocity;
+					lastD=player.direction;
+					hyperDriveUpdate=0;
+				}
+				else if(player.direction!=lastD){
+					if(hyperDriveUpdate>=50){//timeout of sending pos update when moving fast and changing direction a lot which causes calc errors at other players
+						var msg = {
+							type: "m",
+							x: player.x,
+							y: player.y,
+							v: player.velocity,
+							d: player.direction,
+							time: lastUpdate.getTime()
+						};
+						socket.send(JSON.stringify(msg));
+						lastV=player.velocity;
+						lastD=player.direction;
+						hyperDriveUpdate=0;
+					}else{
+						var msg = {
+							type: "d",
+							d: player.direction,
+							time: lastUpdate.getTime()
+						};
+						socket.send(JSON.stringify(msg));
+						lastD=player.direction;
+						if(player.velocity>=180){
+							hyperDriveUpdate+=1;
+						}
+					}
+				}
+				if(player.velocity<180){
+					player.velocity-=dt/150;//friction
+					if(player.velocity<0){
+						player.velocity=0;
+					}
+					lastV=player.velocity;
+				}
+				
+				//end
 				cooldown-=dt;
 				velocity(player,dt); //"physics"
 				for(var e in entities){
 					velocity(entities[e],dt);
 					entities[e].life-=dt;
 					if(entities[e].life<=0){
-						entities.remove(e);
+						delete entities[e];
 					}
 				}
 				for(var e in players){
-					velocity(entities[e],dt);
+					if(players[e].velocity<180){
+						players[e].velocity-=dt/150;//friction
+						if(players[e].velocity<0){
+							players[e].velocity=0;
+						}
+						players[e].life-=dt;
+						if(players[e].life<=0){
+							delete players[e];
+						}
+					}
+					velocity(players[e],dt);
 				}
 				redraw();//self-explanatory :)
 			}
 			
 			function velocity(entity,dt){
-				entity.x+=Math.cos(entity.direction)*entity.velocity*dt/1000;
-				entity.y+=Math.sin(entity.direction)*entity.velocity*dt/1000;
+				if(entity!=undefined){
+					entity.x+=Math.cos(entity.direction)*entity.velocity*dt/1000;
+					entity.y+=Math.sin(entity.direction)*entity.velocity*dt/1000;
+				}
 			}
 		//Graphics	
 			function redraw(){
@@ -207,60 +354,69 @@
 				ctx.fillStyle = "rgb(0,0,0)";
         		ctx.fillRect (0, 0, 800, 600);//clear
         		drawBg(ctx);
-        		ctx.translate(-player.x-(resources.me.width/2)+400,-player.y-(resources.me.height/2)+300);
-        		drawEntity(ctx,player);
+        		ctx.translate(-player.x+400,-player.y+300);
         		for(var e in entities){
         			//console.log(entities[e]);
         			drawEntity(ctx,entities[e]);
         		}
         		for(var e in players){
-        			drawEntity(ctx,entities[e]);
+        			drawEntity(ctx,players[e]);
         		}
+        		drawEntity(ctx,player);
 				ctx.restore();
 			}
 			function drawEntity(ctx,entity){
-				var img;
-				switch(entity.resId){
-					case 0:
-						img=resources.me;
-					break;
-					case 1:
-						img=resources.ship;
-					break;
-					case 2:
-						img=resources.meteorite;
-					break;
-					default://case 3:
-						img=resources.projectile;
-					break;
+				if(entity!=undefined){
+					var img;
+					switch(entity.resId){
+						case 0:
+							img=resources.me;
+						break;
+						case 1:
+							img=resources.ship;
+						break;
+						case 2:
+							img=resources.meteor;
+						break;
+						default://case 3:
+							img=resources.projectile;
+						break;
+					}
+					ctx.save();
+					//if(entity.resId>2){console.log(entity);}
+					ctx.translate(entity.x,entity.y);
+					ctx.rotate(entity.direction);
+					ctx.drawImage(img,-(img.width/2),-(img.height/2));
+					ctx.restore();
 				}
-				ctx.save();
-				ctx.translate(entity.x+(img.width/2),entity.y+(img.height/2));
-				ctx.rotate(entity.direction);
-				ctx.drawImage(img,-(img.width/2),-(img.height/2));
-				ctx.restore();
 			}
 			function drawBg(ctx){
 				var xx=(-((player.x/3)%resources.bg.width));//var xx=(player.x-(player.x%resources.bg.width));
 				var yy=(-((player.y/3)%resources.bg.height));//var yy=(player.y-(player.y%resources.bg.height));
 				var xn=0,yn=0;
 				ctx.drawImage(resources.bg,xx,yy);
-				if(xx>0){
+				if(xx>=0){
 					ctx.drawImage(resources.bg,xx-resources.bg.width,yy);
 				}
-				else if(xx+resources.bg.width<800){
+				else if(xx+resources.bg.width<=800){
 					ctx.drawImage(resources.bg,xx+resources.bg.width,yy);
 				}
-				if(yy>0){
+				if(yy>=0){
 					ctx.drawImage(resources.bg,xx,yy-resources.bg.height);
 				}
-				else if(yy+resources.bg.height<600){
+				else if(yy+resources.bg.height<=600){
 					ctx.drawImage(resources.bg,xx,yy+resources.bg.height);
 				}
-				if(xx>0 && yy>0){
+				if(xx>=0 && yy>=0){
 					ctx.drawImage(resources.bg,xx-resources.bg.width,yy-resources.bg.height);
 				}
-				else if(xx+resources.bg.width<800 && yy+resources.bg.height<600){
+				else if(xx>=0 && yy+resources.bg.height<=600){
+					ctx.drawImage(resources.bg,xx-resources.bg.width,yy+resources.bg.height);
+				}
+				else if(yy>=0 && xx+resources.bg.width<=800){
+					ctx.drawImage(resources.bg,xx+resources.bg.width,yy-resources.bg.height);
+				}
+				else if(xx+resources.bg.width<=800 && yy+resources.bg.height<=600){
 					ctx.drawImage(resources.bg,xx+resources.bg.width,yy+resources.bg.height);
 				}
 			}
