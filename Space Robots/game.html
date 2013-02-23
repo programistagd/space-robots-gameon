@@ -1,10 +1,36 @@
+<!DOCTYPE html>
 <html>
 	<head>
 		<title>Space Robots</title>
 		<script type="text/javascript" src="game.js"></script>
 	</head>
 	<body onLoad="init()">
-		<canvas id="canvas" width="800px" height="600px" ></canvas>
+		<table border="0"><tr><td><canvas id="canvas" width="800px" height="600px" ></canvas></td>
+			<td><div id="score">Score: 0 destroyed robots</div>&nbsp;&nbsp;&nbsp;<a href="https://twitter.com/share" class="twitter-share-button" data-related="programistagd:Creator of this simple game :)" data-lang="en" data-size="large" data-count="vertical" data-text="I played the game Space Robots by @programistagd" data-url="http://sr.wehaveidea.com/">Tweet</a>
+				<script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0];if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src="https://platform.twitter.com/widgets.js";fjs.parentNode.insertBefore(js,fjs);}}(document,"script","twitter-wjs");</script><hr />
+				How to play:
+				<ul>
+					<li>Use WASD to move and Z to shoot</li>
+					<li>When you destroy 10 robots you get triple projectile</li>
+					<li>You can write scripts what your robot does run each frame in the field below
+						<ul>
+							<li>Script is in JS and is run at the beginning of every frame</li>
+							<li>You can read objects &quot;entities&quot; and &quot;players&quot;; you shouldn't write them - only you'd see that changes</li>
+							<li>Every object in these lists have properties x,y, velocity and direction</li>
+							<li>Entities have also property &quot;resId&quot; which can be 2 or 3: 2 is a neutral/decorational asteroid and 3 is a player's projectile(yours too)</li>
+							<li>You have access to your own direction(in radians) and velocity(0-200) which you can set as you want. They're properties of object &quot;player&quot;</li>
+							<li>To shoot a projectile run function &quot;shoot()&quot; It will shoot the projectile in the direction you're facing and velocity of you + 100, also you have to wait till countdown is &lt;&equiv; 0</li>
+						</ul>
+					</li>
+					<li>To run a script tick &quot;Run code&quot;</li>	
+					<li><a href="examples.html">Scripts examples</a></li>
+				</ul>
+				Troubleshooting:<ul>
+					<li>If you have problems with quicksearch on Firefox, put mouse focus on this textarea <input type="text" size="1"/> and play :)</li>
+					<li>If server is down, please run your own from script <a href="https://github.com/programistagd/space-robots-gameon">GitHub</a> and go to <a href="connect.html">IP version</a>.</li>
+				</ul>
+			</td>
+			</tr></table>
 		<br/>
 		<input type="checkbox" id="doUpdate">Run code<br/>
 		<textarea id="code" cols="80" rows="25" placeholder="Put your code here..."></textarea>
